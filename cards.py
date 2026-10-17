@@ -1,3 +1,7 @@
+from functools import total_ordering
+
+
+@total_ordering
 class Card:
     SUITS = "shdc"
     RANKS = "23456789TJQKA"
@@ -13,18 +17,18 @@ class Card:
         self.card = self.rank * 4 + self.suit
 
     def __lt__(self, other):
-        if not isinstance(other, Card):
+        if isinstance(other, Card):
             return self.card < other.card
-        elif isinstance(other, int) and 0 <= other < 52:
+        if isinstance(other, int):
             return self.card < other
-        raise ValueError(f"Invalid comparison: {other}")
+        return NotImplemented
     
     def __eq__(self, other):
-        if not isinstance(other, Card):
+        if isinstance(other, Card):
             return self.card == other.card
-        elif isinstance(other, int) and 0 <= other < 52:
+        if isinstance(other, int):
             return self.card == other
-        raise ValueError(f"Invalid comparison: {other}")
+        return NotImplemented
     
     def __hash__(self):
         return hash(self.card)
@@ -73,7 +77,7 @@ def group_by_rank(cards: list[Card]) -> dict[int, list[Card]]:
     """
     ranks_dict: dict[int, list[Card]] = {}
     for card in cards:
-        ranks_dict[card.rank] = ranks_dict.setdefault(card.rank, []).append(card)
+        ranks_dict.setdefault(card.rank, []).append(card)
     return ranks_dict
 
 
@@ -83,5 +87,5 @@ def group_by_suit(cards: list[Card]) -> dict[int, list[Card]]:
     """
     suits_dict: dict[int, list[Card]] = {}
     for card in cards:
-        suits_dict[card.suit] = suits_dict.setdefault(card.suit, []).append(card)
+        suits_dict.setdefault(card.suit, []).append(card)
     return suits_dict
