@@ -1,3 +1,9 @@
+"""Упаковка силы руки в одно целое число.
+
+Категория и пять тайбрейкеров занимают по 4 бита. Категория лежит в старших битах,
+поэтому обычное сравнение чисел совпадает со сравнением рук.
+"""
+
 SHIFT_A = 20
 SHIFT_B = 16
 SHIFT_C = 12
@@ -8,6 +14,11 @@ SHIFT_F = 0
 MASK = 0xF  # 4 bits per field
 
 def pack(hand_category: int, kicker1: int = 0, kicker2: int = 0, kicker3: int = 0, kicker4: int = 0, kicker5: int = 0) -> int:
+    """Собрать категорию и до пяти кикеров в одно число.
+
+    Каждый аргумент обрезается до младших 4 бит. Незанятый кикер остаётся нулём,
+    и ноль также является рангом двойки.
+    """
     return (
         ((hand_category & MASK) << SHIFT_A)
         | ((kicker1 & MASK) << SHIFT_B)
@@ -18,6 +29,7 @@ def pack(hand_category: int, kicker1: int = 0, kicker2: int = 0, kicker3: int = 
     )
 
 def unpack(k: int) -> tuple[int, int, int, int, int, int]:
+    """Разобрать число ``pack`` в кортеж из категории и пяти кикеров."""
     return (
         (k >> SHIFT_A) & MASK,
         (k >> SHIFT_B) & MASK,
