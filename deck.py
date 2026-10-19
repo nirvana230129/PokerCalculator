@@ -1,18 +1,37 @@
+"""Колода, из которой карты снимаются без возврата.
+
+Полный порядок карт хранится в ``CARDS``. ``positions`` — номера ещё не сданных карт.
+"""
+
 from cards import Card, cards_to_str
 import random
 from typing import Iterator
 
 class Deck:
+    """Колода с добором и удалением известных карт.
+
+    Индекс в ``__getitem__`` — это место среди оставшихся карт, а не номер в ``CARDS``.
+    """
+
     CARDS = [Card(rank, suit) for rank in range(13) for suit in range(4)]
-    def __init__(self, shuffle: bool = True):
+
+    def __init__(self, shuffle: bool = True, rng: random.Random = random):
+        """Собрать 52 карты. ``rng`` используется и при следующих ``remake``."""
+        self.rng = rng
         self.remake(shuffle)
     
     def remake(self, shuffle: bool = True) -> None:
+        """Вернуть в колоду все 52 карты и при ``shuffle`` перемешать их."""
         self.positions = list(range(len(self.CARDS)))
         if shuffle:
-            random.shuffle(self.positions)
+            self.rng.shuffle(self.positions)
     
     def draw(self, n: int = 1) -> list[Card]:
+        """Снять ``n`` первых оставшихся карт.
+
+        Raises:
+            ValueError: ``n`` отрицательное или больше числа оставшихся карт.
+        """
         if n < 0 or n > len(self.positions):
             raise ValueError(f"Cannot draw {n} cards from a deck of {len(self.positions)} cards")
         to_draw = self.__getitem__(slice(0, n))
@@ -20,9 +39,11 @@ class Deck:
         return to_draw
 
     def remove(self, cards: list[Card]) -> None:
+        """Вычеркнуть конкретные карты, где бы они ни лежали в оставшейся колоде."""
         self.positions = [i for i in self.positions if self.CARDS[i] not in cards]
     
     def remaining(self) -> list[Card]:
+        """Вернуть оставшиеся карты в текущем порядке."""
         return self.__getitem__(slice(0, len(self.positions)))
     
     def __getitem__(self, index: int | slice) -> Card | list[Card]:

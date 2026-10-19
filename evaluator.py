@@ -1,3 +1,8 @@
+"""Оценка пяти, шести и семи карт в техасском холдеме.
+
+Сила руки — число из ``combo.pack``: чем оно больше, тем рука старше.
+"""
+
 from cards import *
 from combo import pack, unpack
 from enum import IntEnum
@@ -5,6 +10,8 @@ from itertools import combinations
 
 
 class HandCategory(IntEnum):
+    """Категория комбинации. Большее значение всегда старше меньшего."""
+
     HIGH_CARD = 0
     PAIR = 1
     TWO_PAIR = 2
@@ -33,6 +40,14 @@ HAND_NAMES = {
 WHEEL_RANKS = [0, 1, 2, 3, 12]
 
 def evaluate_5(cards: list[Card]) -> int:
+    """Оценить ровно пять карт.
+
+    Роял-флеш — это стрит-флеш от десятки до туза. Колесо ``A-2-3-4-5`` считается
+    стритом или стрит-флешем до пятёрки.
+
+    Raises:
+        ValueError: в списке не пять карт.
+    """
     if len(cards) != 5:
         raise ValueError(f"Invalid number of cards: it must be 5, not {len(cards)}")
 
@@ -78,16 +93,24 @@ def evaluate_5(cards: list[Card]) -> int:
 
 
 def evaluate(cards: list[Card]) -> int:
+    """Оценить лучшие пять карт из пяти, шести или семи.
+
+    Raises:
+        ValueError: карт меньше пяти.
+    """
     if len(cards) < 5:
         raise ValueError(f"For a standard poker hand, you need at least 5 cards, not {len(cards)}")    
     return max(evaluate_5(combo) for combo in combinations(cards, 5))
 
 
 def hand_category(score: int) -> HandCategory:
+    """Достать категорию комбинации из числа, собранного ``pack``."""
     return HandCategory(unpack(score)[0])
 
 def describe_hand(score: int) -> str:
+    """Вернуть категорию и пять кикеров числами, например ``"6: 6, 2, 0, 0, 0"``."""
     return f"{hand_category(score)}: {', '.join(str(rank) for rank in unpack(score)[1:])}"
 
 def compare(a: int, b: int) -> int:
+    """Сравнить две оценки: ``-1``, если ``a`` слабее, ``0`` при равенстве, ``1`` если ``a`` старше."""
     return (a > b) - (a < b)
