@@ -1,6 +1,6 @@
-"""Колода, из которой карты снимаются без возврата.
+"""A deck that deals cards without replacement.
 
-Полный порядок карт хранится в ``CARDS``. ``positions`` — номера ещё не сданных карт.
+The full card order lives in ``CARDS``. ``positions`` holds the indexes of cards not yet dealt.
 """
 
 from cards import Card, cards_to_str
@@ -8,29 +8,29 @@ import random
 from typing import Iterator
 
 class Deck:
-    """Колода с добором и удалением известных карт.
+    """A deck that can deal cards and remove known ones.
 
-    Индекс в ``__getitem__`` — это место среди оставшихся карт, а не номер в ``CARDS``.
+    An index passed to ``__getitem__`` is a position among the remaining cards, not an index into ``CARDS``.
     """
 
     CARDS = [Card(rank, suit) for rank in range(13) for suit in range(4)]
 
     def __init__(self, shuffle: bool = True, rng: random.Random = random):
-        """Собрать 52 карты. ``rng`` используется и при следующих ``remake``."""
+        """Build a 52-card deck. ``rng`` is also used by later calls to ``remake``."""
         self.rng = rng
         self.remake(shuffle)
     
     def remake(self, shuffle: bool = True) -> None:
-        """Вернуть в колоду все 52 карты и при ``shuffle`` перемешать их."""
+        """Put all 52 cards back, shuffling them when ``shuffle`` is true."""
         self.positions = list(range(len(self.CARDS)))
         if shuffle:
             self.rng.shuffle(self.positions)
     
     def draw(self, n: int = 1) -> list[Card]:
-        """Снять ``n`` первых оставшихся карт.
+        """Deal the first ``n`` remaining cards.
 
         Raises:
-            ValueError: ``n`` отрицательное или больше числа оставшихся карт.
+            ValueError: ``n`` is negative or greater than the number of cards left.
         """
         if n < 0 or n > len(self.positions):
             raise ValueError(f"Cannot draw {n} cards from a deck of {len(self.positions)} cards")
@@ -39,11 +39,11 @@ class Deck:
         return to_draw
 
     def remove(self, cards: list[Card]) -> None:
-        """Вычеркнуть конкретные карты, где бы они ни лежали в оставшейся колоде."""
+        """Remove specific cards wherever they sit in the remaining deck."""
         self.positions = [i for i in self.positions if self.CARDS[i] not in cards]
     
     def remaining(self) -> list[Card]:
-        """Вернуть оставшиеся карты в текущем порядке."""
+        """Return the remaining cards in their current order."""
         return self.__getitem__(slice(0, len(self.positions)))
     
     def __getitem__(self, index: int | slice) -> Card | list[Card]:

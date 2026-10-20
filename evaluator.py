@@ -1,6 +1,6 @@
-"""Оценка пяти, шести и семи карт в техасском холдеме.
+"""Evaluate five, six, or seven cards in Texas Hold'em.
 
-Сила руки — число из ``combo.pack``: чем оно больше, тем рука старше.
+Hand strength is an integer from ``combo.pack``: a larger value is a stronger hand.
 """
 
 from cards import *
@@ -10,7 +10,7 @@ from itertools import combinations
 
 
 class HandCategory(IntEnum):
-    """Категория комбинации. Большее значение всегда старше меньшего."""
+    """Hand category. A larger value is always stronger than a smaller one."""
 
     HIGH_CARD = 0
     PAIR = 1
@@ -40,13 +40,13 @@ HAND_NAMES = {
 WHEEL_RANKS = [0, 1, 2, 3, 12]
 
 def evaluate_5(cards: list[Card]) -> int:
-    """Оценить ровно пять карт.
+    """Evaluate exactly five cards.
 
-    Роял-флеш — это стрит-флеш от десятки до туза. Колесо ``A-2-3-4-5`` считается
-    стритом или стрит-флешем до пятёрки.
+    A royal flush is the ten-to-ace straight flush. The wheel ``A-2-3-4-5`` is a
+    straight or straight flush to the five.
 
     Raises:
-        ValueError: в списке не пять карт.
+        ValueError: the list does not contain five cards.
     """
     if len(cards) != 5:
         raise ValueError(f"Invalid number of cards: it must be 5, not {len(cards)}")
@@ -93,10 +93,10 @@ def evaluate_5(cards: list[Card]) -> int:
 
 
 def evaluate(cards: list[Card]) -> int:
-    """Оценить лучшие пять карт из пяти, шести или семи.
+    """Evaluate the best five cards out of five, six, or seven.
 
     Raises:
-        ValueError: карт меньше пяти.
+        ValueError: fewer than five cards were given.
     """
     if len(cards) < 5:
         raise ValueError(f"For a standard poker hand, you need at least 5 cards, not {len(cards)}")    
@@ -104,13 +104,13 @@ def evaluate(cards: list[Card]) -> int:
 
 
 def hand_category(score: int) -> HandCategory:
-    """Достать категорию комбинации из числа, собранного ``pack``."""
+    """Extract the hand category from an integer produced by ``pack``."""
     return HandCategory(unpack(score)[0])
 
 def describe_hand(score: int) -> str:
-    """Вернуть категорию и пять кикеров числами, например ``"6: 6, 2, 0, 0, 0"``."""
+    """Return the category and five kickers as numbers, for example ``"6: 6, 2, 0, 0, 0"``."""
     return f"{hand_category(score)}: {', '.join(str(rank) for rank in unpack(score)[1:])}"
 
 def compare(a: int, b: int) -> int:
-    """Сравнить две оценки: ``-1``, если ``a`` слабее, ``0`` при равенстве, ``1`` если ``a`` старше."""
+    """Compare two scores: ``-1`` if ``a`` is weaker, ``0`` if equal, ``1`` if ``a`` is stronger."""
     return (a > b) - (a < b)

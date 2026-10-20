@@ -1,31 +1,31 @@
-# Калькулятор эквити для техасского холдема
+# Texas Hold'em equity calculator
 
-Программа оценивает, какую долю банка получает герой при известных своих картах, уже открытом борде и случайных руках оппонентов.
+The program estimates the hero's share of the pot from known hole cards, the cards already on the board, and random opponent hands.
 
-Эквити — средняя доля банка, а не только частота чистой победы. Если герой делит банк с одним соперником, в среднее идёт `1/2`.
+Equity is the average pot share, not only the rate of outright wins. When the hero splits the pot with one opponent, that trial contributes `1/2`.
 
-## Что уже есть
+## What is implemented
 
-| Модуль | Назначение |
+| Module | Purpose |
 |---|---|
-| `cards.py` | Карта, разбор строк `"As Kh"`, колода списком |
-| `combo.py` | Упаковка категории и кикеров в одно число |
-| `evaluator.py` | Лучшая комбинация из 5, 6 или 7 карт |
-| `deck.py` | Колода со снятием карт и удалением известных |
-| `equity.py` | Монте-Карло против случайных оппонентов |
-| `cards.ipynb` | Проверки этих модулей |
+| `cards.py` | A card, parsing strings like `"As Kh"`, and a deck as a list |
+| `combo.py` | Packing a hand category and kickers into one integer |
+| `evaluator.py` | The best hand from 5, 6, or 7 cards |
+| `deck.py` | A deck that deals cards and removes known ones |
+| `equity.py` | Monte Carlo equity against random opponents |
+| `cards.ipynb` | Checks for these modules |
 
-Дальнейший порядок работы записан в `plan.md`. Диапазоны рук, полный перебор борда и префлоп-таблицы ещё не сделаны.
+The remaining work is described in `plan.md`. Hand ranges, exact board enumeration, and preflop tables are not implemented yet.
 
-## Запуск
+## Running
 
-Нужен Python 3.11+ и пакет `tqdm` для индикатора Монте-Карло:
+Python 3.11+ and `tqdm` (used for the Monte Carlo progress bar):
 
 ```bash
 pip install tqdm
 ```
 
-Пример: тузы против одного случайного оппонента на префлопе. На 100 000 раздач доля банка около `0.85`.
+Aces versus one random opponent before the flop. Over 100,000 trials the pot share is about `0.85`.
 
 ```python
 from cards import parse_cards
@@ -35,6 +35,6 @@ result = equity_vs_random(parse_cards("As Ah"), [], n_opponents=1, n=100_000, se
 print(result.equity, result.win, result.tie, result.lose)
 ```
 
-`result.exact` равен `False`: это выборка, повтор без того же `seed` даст немного другое число. `win`, `tie` и `lose` — доли розыгрышей и в сумме дают 1.
+`result.exact` is `False`: this is a sample, so another run without the same `seed` gives a slightly different number. `win`, `tie`, and `lose` are trial shares and add up to 1.
 
-Проверки карт, оценщика, колоды и эквити запускаются ячейками `cards.ipynb`.
+The checks for cards, the evaluator, the deck, and equity are the cells in `cards.ipynb`.

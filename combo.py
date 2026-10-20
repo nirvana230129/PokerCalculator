@@ -1,7 +1,7 @@
-"""Упаковка силы руки в одно целое число.
+"""Pack a hand's strength into a single integer.
 
-Категория и пять тайбрейкеров занимают по 4 бита. Категория лежит в старших битах,
-поэтому обычное сравнение чисел совпадает со сравнением рук.
+The category and five kickers each occupy 4 bits. The category sits in the high bits,
+so comparing the integers compares the hands.
 """
 
 SHIFT_A = 20
@@ -14,10 +14,10 @@ SHIFT_F = 0
 MASK = 0xF  # 4 bits per field
 
 def pack(hand_category: int, kicker1: int = 0, kicker2: int = 0, kicker3: int = 0, kicker4: int = 0, kicker5: int = 0) -> int:
-    """Собрать категорию и до пяти кикеров в одно число.
+    """Pack a category and up to five kickers into one integer.
 
-    Каждый аргумент обрезается до младших 4 бит. Незанятый кикер остаётся нулём,
-    и ноль также является рангом двойки.
+    Each argument is truncated to its low 4 bits. An unused kicker stays zero,
+    and zero is also the rank of a deuce.
     """
     return (
         ((hand_category & MASK) << SHIFT_A)
@@ -29,7 +29,7 @@ def pack(hand_category: int, kicker1: int = 0, kicker2: int = 0, kicker3: int = 
     )
 
 def unpack(k: int) -> tuple[int, int, int, int, int, int]:
-    """Разобрать число ``pack`` в кортеж из категории и пяти кикеров."""
+    """Unpack a ``pack`` integer into the category and five kickers."""
     return (
         (k >> SHIFT_A) & MASK,
         (k >> SHIFT_B) & MASK,

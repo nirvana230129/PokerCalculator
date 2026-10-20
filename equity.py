@@ -1,7 +1,7 @@
-"""Эквити героя против случайных рук оппонентов.
+"""Hero equity against random opponent hands.
 
-Считается Монте-Карло: недостающий борд и руки оппонентов сдаются заново много раз,
-доля банка героя усредняется.
+The estimate is Monte Carlo: the missing board cards and the opponents' hands are dealt
+many times, and the hero's pot share is averaged.
 """
 
 import time
@@ -15,13 +15,13 @@ from dataclasses import dataclass
 
 @dataclass
 class EquityResult:
-    """Итог расчёта эквити.
+    """Result of an equity calculation.
 
-    ``equity`` — средняя доля банка. ``win``, ``tie`` и ``lose`` — доли розыгрышей:
-    весь банк, дележ, в котором герой участвует, и проигрыш. В игре один на один
-    ``equity == win + tie / 2``. ``samples`` — число розыгрышей. ``exact`` равен
-    ``False``, пока результат получен выборкой, а не полным перебором. ``elapsed`` —
-    длительность расчёта в секундах.
+    ``equity`` is the average pot share. ``win``, ``tie``, and ``lose`` are trial shares:
+    the whole pot, a split the hero is part of, and a loss. Heads-up,
+    ``equity == win + tie / 2``. ``samples`` is the number of trials. ``exact`` stays
+    ``False`` while the result comes from sampling rather than full enumeration.
+    ``elapsed`` is the running time in seconds.
     """
 
     equity: float
@@ -34,15 +34,15 @@ class EquityResult:
 
 
 def single_trial(hero: list[Card], board: list[Card], n_opponents: int, rng: random.Random = random) -> float:
-    """Разыграть одну случайную раздачу и вернуть долю банка героя.
+    """Play one random deal and return the hero's pot share.
 
-    Борд добирается до пяти карт, каждому оппоненту сдаются две карты из оставшейся
-    колоды. Доля равна ``0``, если кто-то старше героя, ``1``, если герой один
-    победитель, и ``1 / k``, если банк делят ``k`` игроков вместе с героем.
+    The board is filled to five cards, and each opponent is dealt two cards from the
+    remaining deck. The share is ``0`` when anyone beats the hero, ``1`` when the hero
+    wins alone, and ``1 / k`` when ``k`` players including the hero split the pot.
 
     Raises:
-        ValueError: у героя не две карты, длина борда не 0, 3, 4 или 5,
-            оппонентов меньше нуля или известные карты повторяются.
+        ValueError: the hero does not have two cards, the board length is not 0, 3, 4,
+            or 5, the opponent count is negative, or known cards are duplicated.
     """
     if len(hero) != 2 or len(board) not in (0, 3, 4, 5):
         raise ValueError(f"Hero must have 2 cards and board 0, 3, 4 or 5, not {len(hero)} and {len(board)}")
@@ -65,10 +65,10 @@ def single_trial(hero: list[Card], board: list[Card], n_opponents: int, rng: ran
     return 1 if equal == 0 else 1 / (equal + 1)
 
 def monte_carlo_equity(hero, board, n_opponents, n=100_000, seed=None) -> EquityResult:
-    """Усреднить ``n`` вызовов ``single_trial``.
+    """Average ``n`` calls to ``single_trial``.
 
-    ``seed`` фиксирует генератор и делает повторный вызов с теми же аргументами
-    воспроизводимым. ``exact`` в результате всегда ``False``.
+    ``seed`` fixes the generator, so the same arguments produce the same result again.
+    ``exact`` in the result is always ``False``.
     """
     rng = random.Random(seed)
     total_result = 0
@@ -88,5 +88,5 @@ def monte_carlo_equity(hero, board, n_opponents, n=100_000, seed=None) -> Equity
 
 
 def equity_vs_random(hero, board, n_opponents, n=100_000, seed=None) -> EquityResult:
-    """Посчитать эквити против случайных рук. Сейчас это то же, что ``monte_carlo_equity``."""
+    """Equity against random hands. Currently the same calculation as ``monte_carlo_equity``."""
     return monte_carlo_equity(hero, board, n_opponents, n=n, seed=seed)

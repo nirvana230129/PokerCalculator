@@ -1,6 +1,6 @@
-"""Карта и операции над списками карт.
+"""A playing card and helpers for lists of cards.
 
-Ранг — число 0..12 в порядке ``23456789TJQKA``. Масть — число 0..3 в порядке ``shdc``.
+Rank is an integer 0..12 in the order ``23456789TJQKA``. Suit is an integer 0..3 in the order ``shdc``.
 """
 
 from functools import total_ordering
@@ -8,21 +8,21 @@ from functools import total_ordering
 
 @total_ordering
 class Card:
-    """Одна карта колоды.
+    """One card from the deck.
 
-    Создаётся парой чисел ``Card(12, 0)`` или парой символов ``Card("A", "s")``.
-    ``int(card)`` — номер 0..51, равный ``rank * 4 + suit``. Равные карты сравниваются
-    и хешируются по этому номеру, поэтому их можно класть в ``set``.
+    Construct it from integers, ``Card(12, 0)``, or characters, ``Card("A", "s")``.
+    ``int(card)`` is the index 0..51, equal to ``rank * 4 + suit``. Equality and
+    hashing use that index, so cards can be stored in a ``set``.
     """
 
     SUITS = "shdc"
     RANKS = "23456789TJQKA"
 
     def __init__(self, rank, suit):
-        """Принять ранг и масть числами или символами.
+        """Accept a rank and a suit as integers or characters.
 
         Raises:
-            ValueError: ранг или масть вне колоды.
+            ValueError: the rank or suit is not in the deck.
         """
         if isinstance(rank, int) and isinstance(suit, int) and 0 <= rank < 13 and 0 <= suit < 4:
             self.rank = rank
@@ -62,30 +62,30 @@ class Card:
 
 
 def make_deck() -> list[Card]:
-    """Вернуть новую колоду из 52 карт, от ``2s`` до ``Ac``."""
+    """Return a new 52-card deck, from ``2s`` through ``Ac``."""
     return [Card(rank, suit) for rank in range(13) for suit in range(4)]
 
 
 def parse_cards(s: str) -> list[Card]:
-    """Разобрать строку карт, разделённых пробелами.
+    """Parse a space-separated string of cards.
 
-    ``"As Kh Qd"`` даёт три карты. Слитная запись ``"AsKh"`` не разбирается.
+    ``"As Kh Qd"`` yields three cards. A concatenated string such as ``"AsKh"`` is not parsed.
     """
     return [Card(rank, suit) for rank, suit in s.split()]
 
 
 def cards_to_str(cards: list[Card]) -> str:
-    """Собрать карты обратно в строку вида ``"As Kh Qd"``."""
+    """Join cards back into a string such as ``"As Kh Qd"``."""
     return ' '.join(str(card) for card in cards)
 
 
 def remove_known(deck: list[Card], known: list[Card]) -> list[Card]:
-    """Вернуть копию колоды без карт из ``known``. Исходный список не меняется."""
+    """Return a copy of the deck without the cards in ``known``. The original list is unchanged."""
     return [card for card in deck if card not in known]
 
 
 def group_by_rank(cards: list[Card]) -> dict[int, list[Card]]:
-    """Сгруппировать карты по рангу. Ключ — число 0..12."""
+    """Group cards by rank. The key is an integer 0..12."""
     ranks_dict: dict[int, list[Card]] = {}
     for card in cards:
         ranks_dict.setdefault(card.rank, []).append(card)
@@ -93,7 +93,7 @@ def group_by_rank(cards: list[Card]) -> dict[int, list[Card]]:
 
 
 def group_by_suit(cards: list[Card]) -> dict[int, list[Card]]:
-    """Сгруппировать карты по масти. Ключ — число 0..3 в порядке ``shdc``."""
+    """Group cards by suit. The key is an integer 0..3 in ``shdc`` order."""
     suits_dict: dict[int, list[Card]] = {}
     for card in cards:
         suits_dict.setdefault(card.suit, []).append(card)
