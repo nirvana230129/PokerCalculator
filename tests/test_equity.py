@@ -6,12 +6,14 @@ import pytest
 from cards import cards_to_str, parse_cards
 from equity import (
     _single_trial,
+    all_hands_equity,
     calculate_equity,
     equity_vs_random,
     exact_equity,
     expected_combinations,
     monte_carlo_equity,
 )
+from evaluator import evaluate
 from ranges import Range
 
 
@@ -127,3 +129,18 @@ def test_expected_combinations_and_auto_mode():
     assert wide.samples == 20
     with pytest.raises(ValueError):
         calculate_equity(parse_cards("As Ah"), river, [Range("KK")], mode="nope")
+
+
+def test_all_hands_on_the_river_orders_hands_and_skips_the_board():
+    board = parse_cards("2c 7d 9h 4s 3c")
+    table = all_hands_equity(board, [Range("KK")])
+    assert len(table) == math.comb(47, 2)
+    assert all(card not in board for hand in table for card in hand)
+    assert all(result.exact for result in table.values())
+
+    best = max(table, key=lambda hand: table[hand].equity)
+    worst = min(table, key=lambda hand: table[hand].equity)
+    assert table[best].equity > table[worst].equity
+    assert evaluate(list(best) + board) > evaluate(list(worst) + board)
+    with pytest.raises(ValueError):
+        all_hands_equity(parse_cards("2c 7d"), [Range("KK")])

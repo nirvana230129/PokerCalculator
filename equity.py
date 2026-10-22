@@ -199,3 +199,25 @@ def calculate_equity(hero: list[Card], board: list[Card], opp_ranges: list[Range
     if mode == "exact" or (mode == "auto" and expected_combinations(board, opp_ranges) <= 1_000_000):
         return exact_equity(hero, board, opp_ranges)
     return monte_carlo_equity(hero, board, opp_ranges, n=n, seed=seed)
+
+
+def all_hands_equity(board: list[Card], opp_ranges: list[Range], mode: str = "auto", n: int = 100_000, seed: int | None = None) -> dict[tuple[Card, Card], EquityResult]:
+    """Equity of every concrete two-card hand that does not use a board card.
+
+    ``Kh Qh`` and ``Kd Qd`` are separate entries: on a two-heart flop they are not the
+    same hand. A combo that shares a card with ``board`` is left out. On the river
+    there are ``C(47, 2) = 1081`` hands. ``mode``, ``n``, and ``seed`` are forwarded
+    to ``calculate_equity`` for each hand.
+
+    Raises:
+        ValueError: the board length is not 0, 3, 4, or 5, or the board repeats a card.
+    """
+    if len(board) not in (0, 3, 4, 5):
+        raise ValueError(f"Board must have 0, 3, 4 or 5 cards, not {len(board)}")
+    if len(set(board)) != len(board):
+        raise ValueError("Board contains duplicate cards")
+    remaining = remove_known(make_deck(), board)
+    return {
+        combo: calculate_equity(list(combo), board, opp_ranges, mode=mode, n=n, seed=seed)
+        for combo in combinations(remaining, 2)
+    }

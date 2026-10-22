@@ -12,10 +12,12 @@ Equity is the average pot share, not only the rate of outright wins. When the he
 | `combo.py` | Packing a hand category and kickers into one integer |
 | `evaluator.py` | The best hand from 5, 6, or 7 cards |
 | `deck.py` | A deck that deals cards and removes known ones |
-| `equity.py` | Monte Carlo equity against random opponents |
+| `equity.py` | Equity against ranges, by Monte Carlo or exact enumeration |
+| `ranges.py` | Starting hands and range strings |
+| `precompute.py` | Saved preflop equity for the 169 canonical hands |
 | `tests/` | Pytest checks for these modules |
 
-The remaining work is described in `plan.md`. Hand ranges, exact board enumeration, and preflop tables are not implemented yet.
+The remaining work is described in `plan.md`.
 
 ## Running
 
