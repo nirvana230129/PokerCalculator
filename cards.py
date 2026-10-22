@@ -13,6 +13,18 @@ class Card:
     Construct it from integers, ``Card(12, 0)``, or characters, ``Card("A", "s")``.
     ``int(card)`` is the index 0..51, equal to ``rank * 4 + suit``. Equality and
     hashing use that index, so cards can be stored in a ``set``.
+    Suits:
+        s - spades (♠)
+        h - hearts (♥)
+        d - diamonds (♦)
+        c - clubs (♣)
+    Ranks:
+        2-9 - 2-9
+        T - 10
+        J - Jack
+        Q - Queen
+        K - King
+        A - Ace
     """
 
     SUITS = "shdc"
