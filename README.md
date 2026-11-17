@@ -1,6 +1,6 @@
 # Texas Hold'em equity calculator
 
-The program estimates the hero's share of the pot from known hole cards, the cards already on the board, and random opponent hands.
+The program estimates the hero's share of the pot from known hole cards, the cards already on the board, and random or ranged opponent hands.
 
 Equity is the average pot share, not only the rate of outright wins. When the hero splits the pot with one opponent, that trial contributes `1/2`.
 
@@ -12,12 +12,12 @@ Equity is the average pot share, not only the rate of outright wins. When the he
 | `combo.py` | Packing a hand category and kickers into one integer |
 | `evaluator.py` | The best hand from 5, 6, or 7 cards |
 | `deck.py` | A deck that deals cards and removes known ones |
-| `equity.py` | Equity against ranges, by Monte Carlo or exact enumeration |
 | `ranges.py` | Starting hands and range strings |
+| `equity.py` | Equity against ranges, by Monte Carlo or exact enumeration |
 | `precompute.py` | Saved preflop equity for the 169 canonical hands |
+| `parallel.py` | Monte Carlo split across processes |
+| `cli.py` | Command-line entry |
 | `tests/` | Pytest checks for these modules |
-
-The remaining work is described in `plan.md`.
 
 ## Running
 
@@ -38,6 +38,16 @@ print(result.equity, result.win, result.tie, result.lose)
 ```
 
 `result.exact` is `False`: this is a sample, so another run without the same `seed` gives a slightly different number. `win`, `tie`, and `lose` are trial shares and add up to 1.
+
+### Command line
+
+```bash
+python cli.py --hero "As Kh" --board "Qd 7c 2s" --villain "JJ+, AKs"
+python cli.py --hero "As Kh" --opponents 3 --samples 100000
+python cli.py --board "Qd 7c 2s" --all-hands
+```
+
+Useful flags: `--mode auto|exact|monte_carlo`, `--samples`, `--seed`, `--workers`. `--villain` and `--opponents` cannot be combined. `--all-hands` does not take `--hero`.
 
 Run the checks from the project root:
 
