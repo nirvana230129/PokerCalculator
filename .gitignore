@@ -1,4 +1,7 @@
 plan.md
-/__pycache__/
-tests/__pycache__
+__pycache__/
+*.py[cod]
+.pytest_cache/
 data/
+*.bin
+.DS_Store
