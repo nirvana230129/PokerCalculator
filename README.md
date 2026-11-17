@@ -16,7 +16,10 @@ Equity is the average pot share, not only the rate of outright wins. When the he
 | `equity.py` | Equity against ranges, by Monte Carlo or exact enumeration |
 | `precompute.py` | Saved preflop equity for the 169 canonical hands |
 | `parallel.py` | Monte Carlo split across processes |
+| `lookup.py` | Precomputed five-card score table |
+| `analytics.py` | 13×13 hand-grid helpers for charts |
 | `cli.py` | Command-line entry |
+| `ui/` | Localhost equity page |
 | `tests/` | Pytest checks for these modules |
 
 ## Running
@@ -48,6 +51,14 @@ python cli.py --board "Qd 7c 2s" --all-hands
 ```
 
 Useful flags: `--mode auto|exact|monte_carlo`, `--samples`, `--seed`, `--workers`. `--villain` and `--opponents` cannot be combined. `--all-hands` does not take `--hero`.
+
+Open the local page:
+
+```bash
+python cli.py --ui
+```
+
+The first equity call builds `data/five_card_ranks.bin` if it is missing. That file is not committed.
 
 Run the checks from the project root:
 

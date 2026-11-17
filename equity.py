@@ -36,6 +36,7 @@ class EquityResult:
     samples: int
     exact: bool
     elapsed: float
+    history: list[float] | None = None
 
 
 def _validate(hero: list[Card], board: list[Card]) -> None:
@@ -100,6 +101,7 @@ def monte_carlo_equity(hero: list[Card], board: list[Card], opp_ranges: list[Ran
     Each opponent is dealt from the combinations that avoid the hero, the board,
     and hands already dealt to earlier opponents. ``seed`` makes the same arguments
     produce the same result. ``exact`` in the result is always ``False``.
+    ``history`` stores the running pot share about twenty times during the run.
     """
     _validate(hero, board)
     rng = random.Random(seed)
@@ -107,6 +109,8 @@ def monte_carlo_equity(hero: list[Card], board: list[Card], opp_ranges: list[Ran
     wins = ties = loses = 0
     start_time = time.time()
     dealt = 0
+    history: list[float] = []
+    progress_every = max(1, n // 20)
     for _ in tqdm(range(n)):
         while True:
             opponents = _deal_hands(hero, board, opp_ranges, rng)
@@ -121,8 +125,10 @@ def monte_carlo_equity(hero: list[Card], board: list[Card], opp_ranges: list[Ran
         else:
             ties += 1
         total_result += result
+        if dealt % progress_every == 0 or dealt == n:
+            history.append(total_result / dealt)
     elapsed = time.time() - start_time
-    return EquityResult(total_result / n, wins / n, ties / n, loses / n, dealt, False, elapsed)
+    return EquityResult(total_result / n, wins / n, ties / n, loses / n, dealt, False, elapsed, history)
 
 
 def exact_equity(hero: list[Card], board: list[Card], opp_ranges: list[Range]) -> EquityResult:

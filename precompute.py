@@ -60,7 +60,19 @@ def save_table(path: str | Path, n_opponents: int) -> None:
 def load_table(path: str | Path) -> dict[str, EquityResult]:
     """Read a JSON table into memory and return it, keyed by hand name."""
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    table = {name: EquityResult(**row) for name, row in payload["hands"].items()}
+    table = {
+        name: EquityResult(
+            equity=row["equity"],
+            win=row["win"],
+            tie=row["tie"],
+            lose=row["lose"],
+            samples=row["samples"],
+            exact=row["exact"],
+            elapsed=row["elapsed"],
+            history=row.get("history"),
+        )
+        for name, row in payload["hands"].items()
+    }
     _TABLES[payload["n_opponents"]] = table
     return table
 
