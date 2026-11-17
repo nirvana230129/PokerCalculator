@@ -95,12 +95,16 @@ def evaluate_5(cards: list[Card]) -> int:
 def evaluate(cards: list[Card]) -> int:
     """Evaluate the best five cards out of five, six, or seven.
 
+    Five-card scores are read from the precomputed table in ``lookup``. The table
+    is built from ``evaluate_5`` on first use.
+
     Raises:
         ValueError: fewer than five cards were given.
     """
     if len(cards) < 5:
-        raise ValueError(f"For a standard poker hand, you need at least 5 cards, not {len(cards)}")    
-    return max(evaluate_5(combo) for combo in combinations(cards, 5))
+        raise ValueError(f"For a standard poker hand, you need at least 5 cards, not {len(cards)}")
+    from lookup import score_five
+    return max(score_five(list(combo)) for combo in combinations(cards, 5))
 
 
 def hand_category(score: int) -> HandCategory:
