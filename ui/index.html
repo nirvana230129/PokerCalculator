@@ -25,6 +25,7 @@
     h1 { margin: 0 0 1rem; font-size: 1.4rem; }
     h2 { margin: 1.25rem 0 0.5rem; font-size: 1rem; color: var(--muted); font-weight: 600; }
     .row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem; align-items: end; }
+    [hidden] { display: none !important; }
     .panel {
       background: var(--panel);
       border-radius: 10px;
@@ -52,9 +53,28 @@
     .suit-h, .suit-d { color: var(--heart); }
     .suit-s, .suit-c { color: var(--spade); }
     label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--muted); font-size: 0.85rem; }
+    .hint { color: var(--muted); font-size: 0.8rem; margin: 0.15rem 0 0; max-width: 28rem; }
+    .radio-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .radio-row label {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.4rem;
+      cursor: pointer;
+    }
+    .radio-row input { margin: 0; }
     #result { white-space: pre-wrap; font-family: ui-monospace, monospace; }
     #error { color: var(--heart); min-height: 1.2rem; }
+    #wait-status { color: var(--accent); min-height: 1.2rem; font-family: ui-monospace, monospace; }
     .ok { color: var(--good); }
+    button:disabled { opacity: 0.55; cursor: wait; }
     .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
     svg { width: 100%; height: auto; background: #121a26; border-radius: 8px; }
     #grid-wrap { overflow: auto; }
@@ -96,13 +116,25 @@
   </div>
 
   <div class="panel">
-    <div class="row">
+    <h2>Opponents</h2>
+    <p class="hint">If you do not know their hole cards, choose <strong style="color: var(--text); font-weight: 600;">Unknown hands</strong>. Use a range only when you have a read (for example JJ+).</p>
+    <div class="radio-row">
+      <label><input type="radio" name="opp-mode" id="opp-random" value="random" checked /> Unknown hands (random)</label>
+      <label><input type="radio" name="opp-mode" id="opp-range" value="range" /> Known range</label>
+    </div>
+    <div class="row" id="random-fields">
+      <label>How many opponents
+        <input id="opponents" type="number" min="1" max="8" value="1" />
+      </label>
+    </div>
+    <p class="hint" id="random-hint">Each opponent is dealt a random two-card hand from the remaining deck — use this when their cards are unknown.</p>
+    <div class="row" id="range-fields" hidden>
       <label>Villain range
         <input id="villain" placeholder="JJ+, AKs" value="KK" />
       </label>
-      <label>Or random opponents
-        <input id="opponents" type="number" min="0" placeholder="leave empty" />
-      </label>
+    </div>
+    <p class="hint" id="range-hint" hidden>Example: JJ+, AKs — only these hands are considered for the villain.</p>
+    <div class="row">
       <label>Mode
         <select id="mode">
           <option value="auto">auto</option>
@@ -114,10 +146,12 @@
         <input id="samples" type="number" value="10000" min="1" />
       </label>
     </div>
+    <p class="hint">auto picks exact when the tree is small, otherwise Monte Carlo. Samples is the Monte Carlo trial count.</p>
     <div class="row">
       <button type="button" class="primary" id="calculate">Calculate</button>
       <button type="button" id="show-grid">Show 13×13 grid</button>
     </div>
+    <div id="wait-status"></div>
     <div id="error"></div>
     <div id="result"></div>
   </div>
@@ -125,17 +159,20 @@
   <div class="panel charts">
     <div>
       <h2>Win / tie / lose</h2>
+      <p class="hint">Share of trials where you win the pot, chop, or lose.</p>
       <svg id="split-chart" viewBox="0 0 300 120" role="img"></svg>
     </div>
     <div>
       <h2>Monte Carlo convergence</h2>
-      <svg id="history-chart" viewBox="0 0 300 120" role="img"></svg>
+      <p class="hint">Running estimate of your equity as more random deals are sampled. A flat line means the estimate has settled.</p>
+      <svg id="history-chart" viewBox="0 0 320 160" role="img"></svg>
     </div>
   </div>
 
   <div class="panel">
     <h2>Hand grid</h2>
     <div id="grid-note" style="color: var(--muted); margin-bottom: 0.5rem;"></div>
+    <p class="hint" id="grid-legend">Each cell is equity in percent for that starting hand vs the current opponents (same board). Example: <strong style="color: var(--text); font-weight: 600;">45</strong> means about 45% pot share. Empty cell = hand impossible with this board. Diagonal = pairs, above = suited, below = offsuit.</p>
     <div id="grid-wrap"><table id="grid"></table></div>
   </div>
 
@@ -158,15 +195,76 @@
     const boardEl = document.getElementById("board-cards");
     const errorEl = document.getElementById("error");
     const resultEl = document.getElementById("result");
+    const waitEl = document.getElementById("wait-status");
     const gridNote = document.getElementById("grid-note");
+    const rangeFields = document.getElementById("range-fields");
+    const randomFields = document.getElementById("random-fields");
+    const rangeHint = document.getElementById("range-hint");
+    const randomHint = document.getElementById("random-hint");
+    const calculateBtn = document.getElementById("calculate");
+    const gridBtn = document.getElementById("show-grid");
+    let waitTimer = null;
+
+    function rankLabel(rank) {
+      return rank === "T" ? "10" : rank;
+    }
+
+    function formatElapsed(seconds) {
+      if (seconds < 60) return seconds.toFixed(1) + "s";
+      const mins = Math.floor(seconds / 60);
+      const secs = (seconds % 60).toFixed(1);
+      return mins + "m " + secs + "s";
+    }
+
+    function setBusy(busy) {
+      calculateBtn.disabled = busy;
+      gridBtn.disabled = busy;
+    }
+
+    function startWait(label, noteEl) {
+      const started = performance.now();
+      const tick = () => {
+        const text = label + " — elapsed " + formatElapsed((performance.now() - started) / 1000);
+        waitEl.textContent = text;
+        if (noteEl) noteEl.textContent = text;
+      };
+      tick();
+      clearInterval(waitTimer);
+      waitTimer = setInterval(tick, 200);
+      setBusy(true);
+    }
+
+    function stopWait() {
+      clearInterval(waitTimer);
+      waitTimer = null;
+      waitEl.textContent = "";
+      setBusy(false);
+    }
+
+    function formatCard(card) {
+      const suit = SUITS.find((s) => s.id === card[1]);
+      return `<span class="${suit.cls}">${rankLabel(card[0])}${suit.label}</span>`;
+    }
+
+    function formatCardPlain(card) {
+      const suit = SUITS.find((s) => s.id === card[1]);
+      return rankLabel(card[0]) + suit.label;
+    }
 
     function usedCards() {
       return new Set([...hero, ...board]);
     }
 
-    function formatCard(card) {
-      const suit = SUITS.find((s) => s.id === card[1]);
-      return `<span class="${suit.cls}">${card[0]}${suit.label}</span>`;
+    function opponentMode() {
+      return document.getElementById("opp-random").checked ? "random" : "range";
+    }
+
+    function syncOpponentFields() {
+      const random = opponentMode() === "random";
+      randomFields.hidden = !random;
+      randomHint.hidden = !random;
+      rangeFields.hidden = random;
+      rangeHint.hidden = random;
     }
 
     function render() {
@@ -182,7 +280,7 @@
     function addCard(rank, suit) {
       const card = rank + suit;
       if (usedCards().has(card)) {
-        errorEl.textContent = card + " is already used";
+        errorEl.textContent = formatCardPlain(card) + " is already used";
         return;
       }
       const list = target === "hero" ? hero : board;
@@ -200,7 +298,7 @@
     RANKS.forEach((rank) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = rank;
+      btn.textContent = rankLabel(rank);
       btn.dataset.rank = rank;
       btn.addEventListener("click", () => {
         pendingRank = rank;
@@ -235,18 +333,21 @@
       else board.length = 0;
       render();
     };
+    document.getElementById("opp-range").onchange = syncOpponentFields;
+    document.getElementById("opp-random").onchange = syncOpponentFields;
 
     function requestBody() {
-      const opponents = document.getElementById("opponents").value.trim();
-      const villain = document.getElementById("villain").value.trim();
       const body = {
         hero: hero.join(" "),
         board: board.join(" "),
         mode: document.getElementById("mode").value,
         samples: Number(document.getElementById("samples").value),
       };
-      if (opponents !== "") body.opponents = Number(opponents);
-      else body.villain = villain;
+      if (opponentMode() === "random") {
+        body.opponents = Number(document.getElementById("opponents").value);
+      } else {
+        body.villain = document.getElementById("villain").value.trim();
+      }
       return body;
     }
 
@@ -262,65 +363,84 @@
     function drawSplit(win, tie, lose) {
       const svg = document.getElementById("split-chart");
       const parts = [
-        { v: win, c: "#3dd68c", label: "win" },
-        { v: tie, c: "#3d8bfd", label: "tie" },
-        { v: lose, c: "#e85d5d", label: "lose" },
+        { v: win, c: "#3dd68c", label: "win", x: 20 },
+        { v: tie, c: "#3d8bfd", label: "tie", x: 110 },
+        { v: lose, c: "#e85d5d", label: "lose", x: 200 },
       ];
       let x = 20;
       const bars = parts.map((p) => {
         const w = Math.max(0, p.v) * 260;
         const rect = `<rect x="${x}" y="30" width="${w}" height="36" fill="${p.c}"></rect>`;
-        const text = `<text x="${x + 4}" y="100" fill="#8b9bb4" font-size="12">${p.label} ${(p.v * 100).toFixed(1)}%</text>`;
         x += w;
-        return rect + text;
+        return rect;
       }).join("");
-      svg.innerHTML = bars;
+      const labels = parts.map((p) =>
+        `<text x="${p.x}" y="100" fill="#8b9bb4" font-size="12">${p.label} ${(p.v * 100).toFixed(1)}%</text>`
+      ).join("");
+      svg.innerHTML = bars + labels;
     }
 
     function drawHistory(history) {
       const svg = document.getElementById("history-chart");
       if (!history || history.length < 2) {
-        svg.innerHTML = `<text x="20" y="60" fill="#8b9bb4" font-size="12">No Monte Carlo history</text>`;
+        svg.innerHTML = `<text x="24" y="80" fill="#8b9bb4" font-size="12">Run Calculate with Monte Carlo to see convergence</text>`;
         return;
       }
-      const w = 260, h = 80, left = 20, top = 20;
+      const left = 44, top = 18, w = 240, h = 100;
+      const finalEq = history[history.length - 1];
       const pts = history.map((y, i) => {
         const x = left + (i / (history.length - 1)) * w;
         const yy = top + h - y * h;
         return `${x},${yy}`;
       });
+      const yTicks = [0, 0.25, 0.5, 0.75, 1].map((v) => {
+        const yy = top + h - v * h;
+        return `<line x1="${left}" y1="${yy}" x2="${left + w}" y2="${yy}" stroke="#243044" stroke-width="1"></line>` +
+          `<text x="${left - 6}" y="${yy + 4}" fill="#8b9bb4" font-size="10" text-anchor="end">${Math.round(v * 100)}%</text>`;
+      }).join("");
       svg.innerHTML =
+        yTicks +
+        `<line x1="${left}" y1="${top}" x2="${left}" y2="${top + h}" stroke="#8b9bb4" stroke-width="1"></line>` +
+        `<line x1="${left}" y1="${top + h}" x2="${left + w}" y2="${top + h}" stroke="#8b9bb4" stroke-width="1"></line>` +
         `<polyline fill="none" stroke="#3d8bfd" stroke-width="2" points="${pts.join(" ")}"></polyline>` +
-        `<text x="20" y="14" fill="#8b9bb4" font-size="11">0</text>` +
-        `<text x="270" y="14" fill="#8b9bb4" font-size="11">1</text>`;
+        `<circle cx="${left + w}" cy="${top + h - finalEq * h}" r="3" fill="#3d8bfd"></circle>` +
+        `<text x="${left + w + 6}" y="${top + h - finalEq * h + 4}" fill="#e7ecf3" font-size="11">${(finalEq * 100).toFixed(1)}%</text>` +
+        `<text x="${left}" y="${top + h + 16}" fill="#8b9bb4" font-size="10">early samples</text>` +
+        `<text x="${left + w}" y="${top + h + 16}" fill="#8b9bb4" font-size="10" text-anchor="end">all samples</text>` +
+        `<text x="8" y="12" fill="#8b9bb4" font-size="10">equity</text>`;
     }
 
     function drawGrid(data) {
       const table = document.getElementById("grid");
       const ranks = data.ranks;
-      let html = "<tr><th></th>" + ranks.map((r) => `<th>${r}</th>`).join("") + "</tr>";
+      let html = "<tr><th></th>" + ranks.map((r) => `<th>${rankLabel(r)}</th>`).join("") + "</tr>";
       for (let row = 0; row < 13; row++) {
-        html += `<tr><th>${ranks[row]}</th>`;
+        html += `<tr><th>${rankLabel(ranks[row])}</th>`;
         for (let col = 0; col < 13; col++) {
           let name;
           if (row === col) name = ranks[row] + ranks[col];
           else if (col > row) name = ranks[row] + ranks[col] + "s";
           else name = ranks[col] + ranks[row] + "o";
           const value = data.values[name];
-          const label = value == null ? "" : Math.round(value * 100);
-          html += `<td style="background:${colorForEquity(value)}" title="${name}">${label}</td>`;
+          const pct = value == null ? null : Math.round(value * 100);
+          const label = pct == null ? "" : pct;
+          const tip = pct == null
+            ? `${name}: blocked by board`
+            : `${name}: ${pct}% equity (pot share)`;
+          html += `<td style="background:${colorForEquity(value)}" title="${tip}">${label}</td>`;
         }
         html += "</tr>";
       }
       table.innerHTML = html;
       gridNote.textContent = data.source === "preflop_table"
-        ? "Preflop table already loaded."
-        : "Postflop grid averaged from concrete combos.";
+        ? "Numbers = equity %. Source: preflop table already loaded."
+        : "Numbers = equity %. Source: 169 canonical hands vs current opponents.";
     }
 
-    document.getElementById("calculate").onclick = async () => {
+    calculateBtn.onclick = async () => {
       errorEl.textContent = "";
-      resultEl.textContent = "Calculating…";
+      resultEl.textContent = "";
+      startWait("Calculating equity…");
       try {
         const response = await fetch("/api/equity", {
           method: "POST",
@@ -338,12 +458,14 @@
       } catch (err) {
         resultEl.textContent = "";
         errorEl.textContent = err.message;
+      } finally {
+        stopWait();
       }
     };
 
-    document.getElementById("show-grid").onclick = async () => {
+    gridBtn.onclick = async () => {
       errorEl.textContent = "";
-      gridNote.textContent = "Building grid…";
+      startWait("Building grid… (169 hands)", gridNote);
       try {
         const response = await fetch("/api/grid", {
           method: "POST",
@@ -354,11 +476,14 @@
         if (!response.ok) throw new Error(data.error || "Request failed");
         drawGrid(data);
       } catch (err) {
-        gridNote.textContent = "";
+        gridNote.textContent = err.message;
         errorEl.textContent = err.message;
+      } finally {
+        stopWait();
       }
     };
 
+    syncOpponentFields();
     render();
     drawSplit(0, 0, 0);
     drawHistory([]);

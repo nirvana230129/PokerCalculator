@@ -65,17 +65,31 @@ def _pot_share(hero: list[Card], board: list[Card], opponents: list[list[Card]])
     return 1.0 / (equal + 1)
 
 
-def _deal_hands(hero: list[Card], board: list[Card], opp_ranges: list[Range], rng: random.Random):
-    """Deal one hand from each range, skipping cards already used by earlier players."""
-    blockers = hero + board
+def _range_combo_lists(opp_ranges: list[Range]) -> list[list[list[Card]]]:
+    """Concrete combos for each range, built once for Monte Carlo sampling."""
+    return [
+        [combo for hand in opp_range.hands for combo in hand.to_combos()]
+        for opp_range in opp_ranges
+    ]
+
+
+def _deal_hands(
+    hero: list[Card],
+    board: list[Card],
+    combo_lists: list[list[list[Card]]],
+    rng: random.Random,
+):
+    """Deal one hand from each precomputed combo list, skipping used cards."""
+    blocked = set(hero)
+    blocked.update(board)
     hands = []
-    for opp_range in opp_ranges:
-        choices = opp_range.combos(blockers)
+    for combos in combo_lists:
+        choices = [combo for combo in combos if combo[0] not in blocked and combo[1] not in blocked]
         if not choices:
             return None
         hand = rng.choice(choices)
         hands.append(hand)
-        blockers.extend(hand)
+        blocked.update(hand)
     return hands
 
 
@@ -105,6 +119,7 @@ def monte_carlo_equity(hero: list[Card], board: list[Card], opp_ranges: list[Ran
     """
     _validate(hero, board)
     rng = random.Random(seed)
+    combo_lists = _range_combo_lists(opp_ranges)
     total_result = 0.0
     wins = ties = loses = 0
     start_time = time.time()
@@ -113,7 +128,7 @@ def monte_carlo_equity(hero: list[Card], board: list[Card], opp_ranges: list[Ran
     progress_every = max(1, n // 20)
     for _ in tqdm(range(n)):
         while True:
-            opponents = _deal_hands(hero, board, opp_ranges, rng)
+            opponents = _deal_hands(hero, board, combo_lists, rng)
             if opponents is not None:
                 break
         result = _single_trial(hero, board, opponents, rng)
@@ -183,15 +198,46 @@ def expected_combinations(board: list[Card], opp_ranges: list[Range]) -> int:
 
 
 def equity_vs_random(hero, board, n_opponents, n=100_000, seed=None) -> EquityResult:
-    """Equity against ``n_opponents`` players who hold uniformly random hands."""
+    """Equity against ``n_opponents`` players who hold uniformly random hands.
+
+    Hands and missing board cards are dealt directly from the remaining deck.
+    That is much faster than sampling through full 169-hand ranges.
+    """
     if n_opponents < 0:
         raise ValueError(f"Number of opponents must be non-negative, not {n_opponents}")
-    opp_ranges = []
-    for _ in range(n_opponents):
-        opp_range = Range("22")
-        opp_range.uniform()
-        opp_ranges.append(opp_range)
-    return monte_carlo_equity(hero, board, opp_ranges, n=n, seed=seed)
+    _validate(hero, board)
+    rng = random.Random(seed)
+    blocked = set(hero)
+    blocked.update(board)
+    pool = [card for card in Deck.CARDS if card not in blocked]
+    board_left = 5 - len(board)
+    need = 2 * n_opponents + board_left
+    if need > len(pool):
+        raise ValueError(f"Not enough cards left for {n_opponents} opponents")
+
+    total_result = 0.0
+    wins = ties = loses = 0
+    start_time = time.time()
+    dealt = 0
+    history: list[float] = []
+    progress_every = max(1, n // 20)
+    for _ in tqdm(range(n)):
+        rng.shuffle(pool)
+        opponents = [pool[i : i + 2] for i in range(0, 2 * n_opponents, 2)]
+        full_board = board + pool[2 * n_opponents : need]
+        share = _pot_share(hero, full_board, opponents)
+        dealt += 1
+        if share == 0:
+            loses += 1
+        elif share == 1:
+            wins += 1
+        else:
+            ties += 1
+        total_result += share
+        if dealt % progress_every == 0 or dealt == n:
+            history.append(total_result / dealt)
+    elapsed = time.time() - start_time
+    return EquityResult(total_result / n, wins / n, ties / n, loses / n, dealt, False, elapsed, history)
 
 
 def calculate_equity(hero: list[Card], board: list[Card], opp_ranges: list[Range], mode: str = "auto", n: int = 100_000, seed: int | None = None) -> EquityResult:

@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from analytics import hand_grid_from_board, hand_grid_from_preflop
+from analytics import hand_grid, hand_grid_from_preflop
 from cards import parse_cards
 from equity import EquityResult, calculate_equity, equity_vs_random
 from ranges import Range
@@ -35,6 +35,12 @@ def _board_from_payload(payload: dict):
     return parse_cards(board_text) if board_text.strip() else []
 
 
+def _opponents_from_payload(payload: dict):
+    if "opponents" in payload and payload["opponents"] is not None:
+        return int(payload["opponents"])
+    return None
+
+
 def compute_equity_payload(payload: dict) -> dict:
     """Run one equity calculation from a JSON request body.
 
@@ -49,6 +55,7 @@ def compute_equity_payload(payload: dict) -> dict:
     seed = payload.get("seed")
     if seed is not None:
         seed = int(seed)
+    opponents = _opponents_from_payload(payload)
 
     if payload.get("villain"):
         result = calculate_equity(
@@ -59,8 +66,8 @@ def compute_equity_payload(payload: dict) -> dict:
             n=samples,
             seed=seed,
         )
-    elif "opponents" in payload and payload["opponents"] is not None:
-        result = equity_vs_random(hero, board, int(payload["opponents"]), n=samples, seed=seed)
+    elif opponents is not None:
+        result = equity_vs_random(hero, board, opponents, n=samples, seed=seed)
     else:
         raise ValueError("Provide villain or opponents")
     return result_to_dict(result)
@@ -70,24 +77,34 @@ def compute_grid_payload(payload: dict) -> dict:
     """Build the 13 by 13 equity grid for the page chart."""
     board = _board_from_payload(payload)
     mode = payload.get("mode", "auto")
-    samples = int(payload.get("samples", 200))
+    samples = int(payload.get("samples", 500))
     seed = payload.get("seed")
     if seed is not None:
         seed = int(seed)
-    if not board:
-        opponents = int(payload.get("opponents", 1))
-        return hand_grid_from_preflop(opponents)
+    opponents = _opponents_from_payload(payload)
+
     if payload.get("villain"):
-        opp_ranges = [Range(payload["villain"])]
-    elif "opponents" in payload and payload["opponents"] is not None:
-        opp_ranges = []
-        for _ in range(int(payload["opponents"])):
-            opp = Range("22")
-            opp.uniform()
-            opp_ranges.append(opp)
-    else:
-        raise ValueError("Provide villain or opponents")
-    return hand_grid_from_board(board, opp_ranges, mode=mode, n=samples, seed=seed)
+        return hand_grid(
+            board,
+            opp_ranges=[Range(payload["villain"])],
+            mode=mode,
+            n=samples,
+            seed=seed,
+        )
+    if opponents is not None:
+        if not board:
+            try:
+                return hand_grid_from_preflop(opponents)
+            except KeyError:
+                pass
+        return hand_grid(
+            board,
+            n_opponents=opponents,
+            mode=mode,
+            n=samples,
+            seed=seed,
+        )
+    raise ValueError("Provide villain or opponents")
 
 
 class UIHandler(BaseHTTPRequestHandler):
