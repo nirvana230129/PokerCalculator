@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Poker equity</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #3d8bfd;
+      --heart: #e85d5d;
+      --spade: #dce6f5;
+      --good: #3dd68c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 1.5rem;
+    }
+    h1 { margin: 0 0 1rem; font-size: 1.4rem; }
+    h2 { margin: 1.25rem 0 0.5rem; font-size: 1rem; color: var(--muted); font-weight: 600; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem; align-items: end; }
+    .panel {
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    button, input, select {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid #2b3a4f;
+      background: #121a26;
+      color: var(--text);
+      padding: 0.45rem 0.7rem;
+    }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    button.active { background: #243652; border-color: var(--accent); }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .cards { min-height: 2.2rem; letter-spacing: 0.04em; }
+    .suit-h, .suit-d { color: var(--heart); }
+    .suit-s, .suit-c { color: var(--spade); }
+    label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--muted); font-size: 0.85rem; }
+    #result { white-space: pre-wrap; font-family: ui-monospace, monospace; }
+    #error { color: var(--heart); min-height: 1.2rem; }
+    .ok { color: var(--good); }
+    .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+    svg { width: 100%; height: auto; background: #121a26; border-radius: 8px; }
+    #grid-wrap { overflow: auto; }
+    #grid {
+      border-collapse: collapse;
+      font-size: 0.65rem;
+      font-family: ui-monospace, monospace;
+    }
+    #grid th, #grid td {
+      width: 2.1rem;
+      height: 2.1rem;
+      text-align: center;
+      border: 1px solid #243044;
+    }
+    #grid th { color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Texas Hold'em equity</h1>
+
+  <div class="panel">
+    <h2>Target</h2>
+    <div class="row">
+      <button type="button" id="target-hero" class="active">Hero</button>
+      <button type="button" id="target-board">Board</button>
+    </div>
+    <div class="row">
+      <div>Hero: <span id="hero-cards" class="cards"></span></div>
+      <div>Board: <span id="board-cards" class="cards"></span></div>
+    </div>
+    <h2>Ranks</h2>
+    <div class="row" id="ranks"></div>
+    <h2>Suits</h2>
+    <div class="row" id="suits"></div>
+    <div class="row">
+      <button type="button" id="undo">Undo</button>
+      <button type="button" id="clear">Clear target</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <label>Villain range
+        <input id="villain" placeholder="JJ+, AKs" value="KK" />
+      </label>
+      <label>Or random opponents
+        <input id="opponents" type="number" min="0" placeholder="leave empty" />
+      </label>
+      <label>Mode
+        <select id="mode">
+          <option value="auto">auto</option>
+          <option value="exact">exact</option>
+          <option value="monte_carlo">monte_carlo</option>
+        </select>
+      </label>
+      <label>Samples
+        <input id="samples" type="number" value="10000" min="1" />
+      </label>
+    </div>
+    <div class="row">
+      <button type="button" class="primary" id="calculate">Calculate</button>
+      <button type="button" id="show-grid">Show 13×13 grid</button>
+    </div>
+    <div id="error"></div>
+    <div id="result"></div>
+  </div>
+
+  <div class="panel charts">
+    <div>
+      <h2>Win / tie / lose</h2>
+      <svg id="split-chart" viewBox="0 0 300 120" role="img"></svg>
+    </div>
+    <div>
+      <h2>Monte Carlo convergence</h2>
+      <svg id="history-chart" viewBox="0 0 300 120" role="img"></svg>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Hand grid</h2>
+    <div id="grid-note" style="color: var(--muted); margin-bottom: 0.5rem;"></div>
+    <div id="grid-wrap"><table id="grid"></table></div>
+  </div>
+
+  <script>
+    const RANKS = "23456789TJQKA".split("");
+    const SUITS = [
+      { id: "s", label: "♠", cls: "suit-s" },
+      { id: "h", label: "♥", cls: "suit-h" },
+      { id: "d", label: "♦", cls: "suit-d" },
+      { id: "c", label: "♣", cls: "suit-c" },
+    ];
+    const GRID_RANKS = "AKQJT98765432".split("");
+
+    let target = "hero";
+    let pendingRank = null;
+    const hero = [];
+    const board = [];
+
+    const heroEl = document.getElementById("hero-cards");
+    const boardEl = document.getElementById("board-cards");
+    const errorEl = document.getElementById("error");
+    const resultEl = document.getElementById("result");
+    const gridNote = document.getElementById("grid-note");
+
+    function usedCards() {
+      return new Set([...hero, ...board]);
+    }
+
+    function formatCard(card) {
+      const suit = SUITS.find((s) => s.id === card[1]);
+      return `<span class="${suit.cls}">${card[0]}${suit.label}</span>`;
+    }
+
+    function render() {
+      heroEl.innerHTML = hero.map(formatCard).join(" ") || "—";
+      boardEl.innerHTML = board.map(formatCard).join(" ") || "—";
+      document.querySelectorAll("#ranks button").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.rank === pendingRank);
+      });
+      document.getElementById("target-hero").classList.toggle("active", target === "hero");
+      document.getElementById("target-board").classList.toggle("active", target === "board");
+    }
+
+    function addCard(rank, suit) {
+      const card = rank + suit;
+      if (usedCards().has(card)) {
+        errorEl.textContent = card + " is already used";
+        return;
+      }
+      const list = target === "hero" ? hero : board;
+      const limit = target === "hero" ? 2 : 5;
+      if (list.length >= limit) {
+        errorEl.textContent = target + " is full";
+        return;
+      }
+      list.push(card);
+      pendingRank = null;
+      errorEl.textContent = "";
+      render();
+    }
+
+    RANKS.forEach((rank) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = rank;
+      btn.dataset.rank = rank;
+      btn.addEventListener("click", () => {
+        pendingRank = rank;
+        render();
+      });
+      document.getElementById("ranks").appendChild(btn);
+    });
+
+    SUITS.forEach((suit) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.innerHTML = `<span class="${suit.cls}">${suit.label}</span>`;
+      btn.addEventListener("click", () => {
+        if (!pendingRank) {
+          errorEl.textContent = "Pick a rank first";
+          return;
+        }
+        addCard(pendingRank, suit.id);
+      });
+      document.getElementById("suits").appendChild(btn);
+    });
+
+    document.getElementById("target-hero").onclick = () => { target = "hero"; render(); };
+    document.getElementById("target-board").onclick = () => { target = "board"; render(); };
+    document.getElementById("undo").onclick = () => {
+      const list = target === "hero" ? hero : board;
+      list.pop();
+      render();
+    };
+    document.getElementById("clear").onclick = () => {
+      if (target === "hero") hero.length = 0;
+      else board.length = 0;
+      render();
+    };
+
+    function requestBody() {
+      const opponents = document.getElementById("opponents").value.trim();
+      const villain = document.getElementById("villain").value.trim();
+      const body = {
+        hero: hero.join(" "),
+        board: board.join(" "),
+        mode: document.getElementById("mode").value,
+        samples: Number(document.getElementById("samples").value),
+      };
+      if (opponents !== "") body.opponents = Number(opponents);
+      else body.villain = villain;
+      return body;
+    }
+
+    function colorForEquity(value) {
+      if (value == null) return "#1a2332";
+      const t = Math.max(0, Math.min(1, value));
+      const r = Math.round(30 + (1 - t) * 160);
+      const g = Math.round(40 + t * 160);
+      const b = Math.round(70 + (1 - Math.abs(t - 0.5)) * 40);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    function drawSplit(win, tie, lose) {
+      const svg = document.getElementById("split-chart");
+      const parts = [
+        { v: win, c: "#3dd68c", label: "win" },
+        { v: tie, c: "#3d8bfd", label: "tie" },
+        { v: lose, c: "#e85d5d", label: "lose" },
+      ];
+      let x = 20;
+      const bars = parts.map((p) => {
+        const w = Math.max(0, p.v) * 260;
+        const rect = `<rect x="${x}" y="30" width="${w}" height="36" fill="${p.c}"></rect>`;
+        const text = `<text x="${x + 4}" y="100" fill="#8b9bb4" font-size="12">${p.label} ${(p.v * 100).toFixed(1)}%</text>`;
+        x += w;
+        return rect + text;
+      }).join("");
+      svg.innerHTML = bars;
+    }
+
+    function drawHistory(history) {
+      const svg = document.getElementById("history-chart");
+      if (!history || history.length < 2) {
+        svg.innerHTML = `<text x="20" y="60" fill="#8b9bb4" font-size="12">No Monte Carlo history</text>`;
+        return;
+      }
+      const w = 260, h = 80, left = 20, top = 20;
+      const pts = history.map((y, i) => {
+        const x = left + (i / (history.length - 1)) * w;
+        const yy = top + h - y * h;
+        return `${x},${yy}`;
+      });
+      svg.innerHTML =
+        `<polyline fill="none" stroke="#3d8bfd" stroke-width="2" points="${pts.join(" ")}"></polyline>` +
+        `<text x="20" y="14" fill="#8b9bb4" font-size="11">0</text>` +
+        `<text x="270" y="14" fill="#8b9bb4" font-size="11">1</text>`;
+    }
+
+    function drawGrid(data) {
+      const table = document.getElementById("grid");
+      const ranks = data.ranks;
+      let html = "<tr><th></th>" + ranks.map((r) => `<th>${r}</th>`).join("") + "</tr>";
+      for (let row = 0; row < 13; row++) {
+        html += `<tr><th>${ranks[row]}</th>`;
+        for (let col = 0; col < 13; col++) {
+          let name;
+          if (row === col) name = ranks[row] + ranks[col];
+          else if (col > row) name = ranks[row] + ranks[col] + "s";
+          else name = ranks[col] + ranks[row] + "o";
+          const value = data.values[name];
+          const label = value == null ? "" : Math.round(value * 100);
+          html += `<td style="background:${colorForEquity(value)}" title="${name}">${label}</td>`;
+        }
+        html += "</tr>";
+      }
+      table.innerHTML = html;
+      gridNote.textContent = data.source === "preflop_table"
+        ? "Preflop table already loaded."
+        : "Postflop grid averaged from concrete combos.";
+    }
+
+    document.getElementById("calculate").onclick = async () => {
+      errorEl.textContent = "";
+      resultEl.textContent = "Calculating…";
+      try {
+        const response = await fetch("/api/equity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody()),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Request failed");
+        resultEl.innerHTML =
+          `<div class="ok">equity=${data.equity.toFixed(6)}</div>` +
+          `win=${data.win.toFixed(6)}  tie=${data.tie.toFixed(6)}  lose=${data.lose.toFixed(6)}\n` +
+          `samples=${data.samples}  method=${data.method}  elapsed=${data.elapsed.toFixed(3)}s`;
+        drawSplit(data.win, data.tie, data.lose);
+        drawHistory(data.history || []);
+      } catch (err) {
+        resultEl.textContent = "";
+        errorEl.textContent = err.message;
+      }
+    };
+
+    document.getElementById("show-grid").onclick = async () => {
+      errorEl.textContent = "";
+      gridNote.textContent = "Building grid…";
+      try {
+        const response = await fetch("/api/grid", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody()),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Request failed");
+        drawGrid(data);
+      } catch (err) {
+        gridNote.textContent = "";
+        errorEl.textContent = err.message;
+      }
+    };
+
+    render();
+    drawSplit(0, 0, 0);
+    drawHistory([]);
+  </script>
+</body>
+</html>

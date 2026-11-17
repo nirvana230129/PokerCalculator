@@ -32,6 +32,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Equity of every hole-card combo that avoids the board",
     )
+    parser.add_argument(
+        "--ui",
+        action="store_true",
+        help="Open the local equity page in a browser",
+    )
+    parser.add_argument("--port", type=int, default=8765, help="Port for --ui")
     return parser
 
 
@@ -79,6 +85,11 @@ def _equity_for_ranges(hero, board, opp_ranges, mode: str, samples: int, seed: i
 def run(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.ui:
+        from ui.server import serve_ui
+        serve_ui(port=args.port)
+        return 0
 
     if args.villain is not None and args.opponents is not None:
         print("--villain and --opponents cannot be used together", file=sys.stderr)
